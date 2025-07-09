@@ -6,10 +6,8 @@ This repository accompanies the following paper:
 Liang Xu, Longfei Felix Yan, W. Bastiaan Kleijn  
 *IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA), 2025*
 
-🔗 [**Project Page**](https://liangxu123.github.io/rosecd/)
-
-🔗 [**Paper Page**](https://arxiv.org/abs/2507.05688)
-
+🔗 [**Project Website**](https://liangxu123.github.io/rosecd/)  
+📄 [**Read the Paper (arXiv)**](https://arxiv.org/abs/2507.05688)
 
 ---
 
