@@ -8,6 +8,9 @@ Liang Xu, Longfei Felix Yan, W. Bastiaan Kleijn
 
 🔗 [**Project Page**](https://liangxu123.github.io/rosecd/)
 
+🔗 [**Paper Page**](https://arxiv.org/abs/2507.05688)
+
+
 ---
 
 ## Highlights
