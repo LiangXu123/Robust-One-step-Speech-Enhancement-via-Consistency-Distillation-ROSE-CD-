@@ -1,5 +1,8 @@
 # Robust One-step Speech Enhancement via Consistency Distillation (ROSE-CD)
 
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/robust-one-step-speech-enhancement-via/speech-enhancement-on-demand)](https://paperswithcode.com/sota/speech-enhancement-on-demand?p=robust-one-step-speech-enhancement-via)
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/robust-one-step-speech-enhancement-via/speech-enhancement-on-voicebank-demand-2)](https://paperswithcode.com/sota/speech-enhancement-on-voicebank-demand-2?p=robust-one-step-speech-enhancement-via)
+
 This repository accompanies the following paper:
 
 **Robust One-step Speech Enhancement via Consistency Distillation**  
