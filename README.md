@@ -29,9 +29,11 @@ If you find this work helpful, please cite:
 
 ```bibtex
 @inproceedings{xu2025rosecd,
+  author    = {Xu, Liang and Yan, Longfei Felix and Kleijn, W. Bastiaan},
   title     = {Robust One-step Speech Enhancement via Consistency Distillation},
-  author    = {Liang Xu and Longfei Felix Yan and W. Bastiaan Kleijn},
-  booktitle = {IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA)},
+  booktitle = {Proceedings of the IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA)},
   year      = {2025},
-  organization = {IEEE}
+  month     = oct,
+  address   = {Lake Tahoe, CA, USA},
+  publisher = {IEEE}
 }
