@@ -28,12 +28,14 @@ Liang Xu, Longfei Felix Yan, W. Bastiaan Kleijn
 If you find this work helpful, please cite:
 
 ```bibtex
-@inproceedings{xu2025rosecd,
-  author    = {Xu, Liang and Yan, Longfei Felix and Kleijn, W. Bastiaan},
-  title     = {Robust One-step Speech Enhancement via Consistency Distillation},
-  booktitle = {Proceedings of the IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA)},
-  year      = {2025},
-  month     = oct,
-  address   = {Lake Tahoe, CA, USA},
-  publisher = {IEEE}
-}
+@INPROCEEDINGS{11230988,
+  author={Xu, Liang and Yan, Longfei Felix and Kleijn, W. Bastiaan},
+  booktitle={2025 IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA)}, 
+  title={Robust One-step Speech Enhancement via Consistency Distillation}, 
+  year={2025},
+  volume={},
+  number={},
+  pages={1-5},
+  keywords={Noise;Speech enhancement;Robustness;Real-time systems;Trajectory;Recording;Noise measurement;Iterative methods;Time-domain analysis;Optimization},
+  doi={10.1109/WASPAA66052.2025.11230988}}
+
