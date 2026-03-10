@@ -11,7 +11,7 @@ Liang Xu, Longfei Felix Yan, W. Bastiaan Kleijn
 
 🔗 [**Project Website**](https://liangxu123.github.io/rosecd/)  
 📄 [**Read the Paper (arXiv)**](https://arxiv.org/abs/2507.05688)
-📄 [**Read the Paper (IEEE)**]([https://arxiv.org/abs/2507.05688](https://ieeexplore.ieee.org/document/11230988))
+📄 [**Read the Paper (IEEE)**](https://ieeexplore.ieee.org/document/11230988)
 
 ---
 
