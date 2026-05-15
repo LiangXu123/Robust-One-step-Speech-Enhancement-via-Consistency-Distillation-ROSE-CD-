@@ -24,6 +24,72 @@ Liang Xu, Longfei Felix Yan, W. Bastiaan Kleijn
 
 ---
 
+## Installation
+
+Create a new virtual environment and install the required dependencies (Python 3.11 is recommended).
+
+```bash
+# Clone the repository
+git clone https://github.com/liangxu123/rosecd.git
+cd rosecd
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+If you are using W&B for logging, set up an account and run `wandb login` before training.
+
+---
+
+## Dataset Preparation
+
+Set the correct dataset paths for training and testing in `path_config.sh`.
+By default, the scripts point to paths for VoiceBank-DEMAND, TIMIT+NOISEX92, DNS-Challenge, and SIG Challenge.
+
+---
+
+## Teacher Training
+
+Training the teacher model is done by executing `train.py`. A minimal running example with default settings (as in our paper but supporting the EDM architecture) can be run with:
+
+```bash
+bash ./scripts-Teacher/train_teacher_model.sh 0 # where 0 is the GPU_ID
+```
+
+---
+
+## One-step Consistency Model Training
+
+We provide scripts and results for both **Consistency Training (CT)** and **Consistency Distillation (CD)**. Both methods deliver excellent performance! 
+
+> **Recommendation:** We highly encourage using **CT (Consistency Training)**. CT achieves the same high performance as CD, but it **does not require a pre-trained teacher model**, making the training pipeline much simpler!
+
+Training the consistency model is done by executing `onestep_train.py`. A minimal running example (see `scripts-Onestep/onestep_train_pesq1e-3.sh` and `onestep_train_pesq5e-4.sh`) can be run with:
+
+```bash
+bash ./scripts-Onestep/onestep_train_pesq1e-3.sh 0 # where 0 is the GPU_ID
+```
+
+---
+
+## Evaluation
+
+To evaluate the one-step consistency model on test sets, use the provided scripts in the `scripts-Onestep/` directory.
+
+For example, to evaluate on the VoiceBank-DEMAND test set:
+
+```bash
+bash ./scripts-Onestep/eval_onestep_VB.sh 0 # where 0 is the GPU_ID
+```
+
+For real-time evaluation:
+
+```bash
+bash ./scripts-Onestep/eval_onestep_VBrealtime.sh 0
+```
+
+---
+
 ## Citation
 
 If you find this work helpful, please cite:
@@ -39,5 +105,4 @@ If you find this work helpful, please cite:
   keywords={Noise;Speech enhancement;Robustness;Real-time systems;Trajectory;Recording;Noise measurement;Iterative methods;Time-domain analysis;Optimization},
   doi={10.1109/WASPAA66052.2025.11230988}
 }
-
-
+```
