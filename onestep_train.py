@@ -110,7 +110,7 @@ if __name__ == '__main__':
     )
     if os.path.isfile(ckpt_path):
         checkpoint = torch.load(
-            ckpt_path, map_location="cuda:0")  # Load checkpoint
+            ckpt_path, map_location="cuda:0", weights_only=False)  # Load checkpoint
         model.load_state_dict(
             checkpoint["state_dict"], strict=False)  # Load weights
 
@@ -126,7 +126,7 @@ if __name__ == '__main__':
         )
         if os.path.isfile(ckpt_path):
             checkpoint = torch.load(
-                ckpt_path, map_location="cuda:0")  # Load checkpoint
+                ckpt_path, map_location="cuda:0", weights_only=False)  # Load checkpoint
             target_model.load_state_dict(
                 checkpoint["state_dict"], strict=False)  # Load weights
 

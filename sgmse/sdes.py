@@ -112,14 +112,12 @@ class SDE(abc.ABC):
 
             def sde(self, x, y, t, *args):
                 """Create the drift and diffusion functions for the reverse SDE/ODE."""
-                # print('self.probability_flow:', self.probability_flow)
                 rsde_parts = self.rsde_parts(x, y, t, *args)
                 total_drift, diffusion = rsde_parts["total_drift"], rsde_parts["diffusion"]
                 return total_drift, diffusion
 
             def ode(self, x, y, t, *args):
                 """Create the drift and diffusion functions for the PF ODE."""
-                # print('self.probability_flow:', True)
                 rode_parts = self.rode_parts(x, y, t, *args)
                 total_drift, diffusion = rode_parts["total_drift"], rode_parts["diffusion"]
                 return total_drift, diffusion

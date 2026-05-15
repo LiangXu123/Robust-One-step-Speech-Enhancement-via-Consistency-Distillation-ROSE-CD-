@@ -34,8 +34,6 @@ def get_euler_sampler(
 
     def sampler_at_one_step(xt, y, t, next_t):
         """The PC sampler function. here for distill, we only backward for once"""
-        # print('denoise: {}'.format(denoise))
-        # denoise: True
         with torch.no_grad():
             stepsize = t - next_t
             vec_t = torch.ones(y.shape[0], device=y.device) * t
@@ -58,8 +56,6 @@ def get_heun_solver_sampler(
 
     def sampler_at_one_step(xt, y, t, next_t):
         """The PC sampler function. here for distill, we only backward for once"""
-        # print('denoise: {}'.format(denoise))
-        # denoise: True
         with torch.no_grad():
             stepsize = t - next_t
             vec_t = torch.ones(y.shape[0], device=y.device) * t
@@ -119,8 +115,6 @@ def get_sb_solver(
 ):
     def sb_sampler_at_one_step(xt, y, current_t, next_t):
         """The sb ODE sampler function. here for distill, we only backward for once"""
-        # print('denoise: {}'.format(denoise))
-        # denoise: True
         time_steps = torch.linspace(sde.T, eps, sde.N)
         with torch.no_grad():
             # Initial values
@@ -159,9 +153,6 @@ def get_sb_solver(
                     # Run Score DNN
                     # current_estimate = model(xt, y, time)
                     # grad = self.score_fn(x, y, t, *args)
-                    # print("weight_prev: {}".format(weight_prev))
-                    # print("weight_estimate: {}".format(weight_estimate))
-                    # print("weight_prior_mean: {}".format(weight_prior_mean))
                     weight_prev = weight_prev.to(y.device)
                     weight_estimate = weight_estimate.to(y.device)
                     weight_prior_mean = weight_prior_mean.to(y.device)
@@ -264,8 +255,6 @@ def get_pc_sampler2(
 
     def pc_sampler_at_one_step(xt, y, t, next_t):
         """The PC sampler function. here for distill, we only backward for once"""
-        # print('denoise: {}'.format(denoise))
-        # denoise: True
         with torch.no_grad():
             stepsize = t - next_t
             vec_t = torch.ones(y.shape[0], device=y.device) * t
@@ -318,8 +307,6 @@ def get_pc_sampler(
         sde, score_fn, probability_flow=probability_flow)  # false
     corrector = corrector_cls(sde, score_fn, snr=snr,  # 0.5
                               n_steps=corrector_steps)  # 1
-    # print('denoise: {}'.format(denoise))
-    # denoise: True
 
     def pc_sampler():
         """The PC sampler function."""
@@ -343,9 +330,6 @@ def get_pc_sampler(
 
                 # this is different from Predictor-Corrector pipeline !!!!!!!
                 xt, xt_mean = corrector.update_fn(xt, y, vec_t)
-                # print('xt.shape:{}, y.shape:{}, xt_mean.shape:{}'.format
-                #   (xt.shape, y.shape, xt_mean.shape))
-                #   xt.shape:torch.Size([1, 1, 256, 256]), y.shape:torch.Size([1, 1, 256, 256]), xt_mean.shape:torch.Size([1, 1, 256, 256])
                 # corrector="ald"
                 # predictor="reverse_diffusion"
                 xt, xt_mean = predictor.update_fn(xt, y, vec_t, stepsize)
@@ -580,14 +564,12 @@ def get_stochastic_sampler(score_fn, sde, y, snr=0.5, eps=3e-2):
                     # eps_tensor = torch.tensor(eps, device=x.device, dtype=x.dtype)
 
                     # coeff = torch.sqrt(tau_n_tensor ** 2 - eps_tensor ** 2)
-                    # print("coeff:", coeff)
                     # x_hat_tau_n = x + coeff * z
 
                     vec_t = torch.ones(y.shape[0], device=y.device) * tau_n
                     std = sde.marginal_prob(xt, y, vec_t)[1]  # std=sigma
                     # x_mean = score_fn(xt, y, vec_t, return_X=True)
                     step_size = (snr * std) ** 2 * 2  # this is theta
-                    # print("coeff:", torch.sqrt(step_size * 2))
                     x_hat_tau_n = x + z * \
                         torch.sqrt(step_size * 2)[:, None, None, None]
 
@@ -600,33 +582,4 @@ def get_stochastic_sampler(score_fn, sde, y, snr=0.5, eps=3e-2):
     return stochastic_sampler
 
 
-# @torch.no_grad()
-# def stochastic_iterative_sampler(
-#     distiller,
-#     x,
-#     sigmas,
-#     generator,
-#     ts,
-#     progress=False,
-#     callback=None,
-#     t_min=0.002,
-#     t_max=80.0,
-#     rho=7.0,
-#     steps=40,
-# ):
-#     t_max_rho = t_max ** (1 / rho)
-#     t_min_rho = t_min ** (1 / rho)
-#     s_in = x.new_ones([x.shape[0]])
 
-#     # ts = 0, 22, 39
-#     for i in range(len(ts) - 1):
-#         t = (t_max_rho + ts[i] / (steps - 1) * (t_min_rho - t_max_rho)) ** rho
-#         x0 = distiller(x, t * s_in) # this is the skip connection output, e.g. Denoiser output
-#         next_t = (t_max_rho + ts[i + 1] / (steps - 1)
-#                   * (t_min_rho - t_max_rho)) ** rho
-#         next_t = np.clip(next_t, t_min, t_max)
-#         # the last next_t is 0.00200
-#         # the last np.sqrt(next_t**2 - t_min**2)=1.1271865066977384e-10, so the last predict is x0
-#         x = x0 + generator.randn_like(x) * np.sqrt(next_t**2 - t_min**2)
-
-#     return x

@@ -1,32 +1,27 @@
-# Robust One-step Speech Enhancement via Consistency Distillation (ROSE-CD)(IEEE WASPAA ORAL)
+# ROSE-CD
 
-[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/robust-one-step-speech-enhancement-via-1/speech-enhancement-on-demand)](https://paperswithcode.com/sota/speech-enhancement-on-demand?p=robust-one-step-speech-enhancement-via-1)
-[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/robust-one-step-speech-enhancement-via-1/speech-enhancement-on-voicebank-demand-2)](https://paperswithcode.com/sota/speech-enhancement-on-voicebank-demand-2?p=robust-one-step-speech-enhancement-via-1)
+This repository provides the official PyTorch implementation of the following paper:
 
-This repository accompanies the following paper:
-
-**Robust One-step Speech Enhancement via Consistency Distillation(IEEE WASPAA ORAL)**  
+**Robust One-step Speech Enhancement via Consistency Distillation (IEEE WASPAA 2025, Oral Presentation)**  
 Liang Xu, Longfei Felix Yan, W. Bastiaan Kleijn  
 *IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA), 2025*
 
-🔗 [**Project Website**](https://liangxu123.github.io/rosecd/)  
-📄 [**Read the Paper (arXiv)**](https://arxiv.org/abs/2507.05688)
-📄 [**Read the Paper (IEEE)**](https://ieeexplore.ieee.org/document/11230988)
+🔗 [**Project Website**](https://liangxu123.github.io/rosecd/)  |  📄 [**arXiv Preprint**](https://arxiv.org/abs/2507.05688)  |  📄 [**IEEE Xplore**](https://ieeexplore.ieee.org/document/11230988)
 
 ---
 
-## Highlights
+## 📖 Highlights
 
-- A one-step consistency distillation method for real-time speech enhancement.
-- Mitigates teacher bias via randomized training and time-domain auxiliary losses.
-- Achieves 54× faster inference while surpassing the 30-step teacher model.
-- Demonstrates strong generalization across out-of-domain and real-world scenarios.
+- **Real-Time Efficiency:** Proposes a one-step consistency training (CT) framework for highly efficient, real-time speech enhancement.
+- **Improved Robustness:** Mitigates the accumulation of teacher-induced biases via randomized trajectory training and auxiliary time-domain constraints.
+- **Superior Performance:** Accelerates inference speed by a factor of 54× while surpassing the performance of the foundational 30-step teacher model.
+- **Strong Generalization:** Demonstrates robust generalization capabilities across out-of-domain and dynamic real-world acoustic scenarios.
 
 ---
 
-## Performance Results
+## 📊 Performance Benchmark
 
-The following table demonstrates the performance leap of the **1-step Consistency Training (CT)** model compared to the **30-step Teacher** model on the VoiceBank-DEMAND test set. The CT model not only accelerates inference by an order of magnitude but also significantly improves all objective metrics.
+The table below presents a comparative analysis between the proposed **1-step Consistency Training (CT)** model and the baseline **30-step Teacher** model, evaluated on the VoiceBank-DEMAND test corpus. The CT framework not only accelerates inference by an order of magnitude but also yields statistically significant improvements across all established objective metrics.
 
 | Model | Steps | PESQ (↑) | ESTOI (↑) | SI-SDR (↑) | SI-SIR (↑) | SI-SAR (↑) |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -35,82 +30,91 @@ The following table demonstrates the performance leap of the **1-step Consistenc
 
 ---
 
-## Pre-trained Models & Enhanced Outputs
+## 🔗 Pre-trained Models & Audio Samples
 
-We provide the pre-trained checkpoints and the corresponding enhanced audio outputs for both the 30-step Teacher model and our 1-step CT model.
+We release the pre-trained checkpoints alongside corresponding enhanced audio outputs for both the 30-step teacher model and our 1-step CT model.
 
-- **Checkpoints**: [Google Drive](https://drive.google.com/file/d/1ekzJQidIojhjlj6oaUzQBKp4Pil6jIz7/view?usp=sharing)
-- **Enhanced Outputs**: [Google Drive](https://drive.google.com/file/d/17hyzn2CWzzpDg44spLp8NJJbiDK4v_wN/view?usp=sharing)
+- **Checkpoints**: [Download via Google Drive](https://drive.google.com/file/d/1ekzJQidIojhjlj6oaUzQBKp4Pil6jIz7/view?usp=sharing)
+- **Enhanced Audio Outputs**: [Download via Google Drive](https://drive.google.com/file/d/17hyzn2CWzzpDg44spLp8NJJbiDK4v_wN/view?usp=sharing)
 
-After downloading the checkpoints, place them in the appropriate directory (e.g., `./logs/`) and update the checkpoint paths in the evaluation scripts (`eval_CT.sh` or `eval_teacher.sh`) to reproduce our results.
+**Usage instructions:**
+Extract and place the downloaded checkpoints into the designated `logs/` directory (e.g., `./logs/`). Ensure that the checkpoint paths within the evaluation scripts (`scripts/eval_CT.sh` or `scripts/eval_teacher.sh`) are correctly updated to replicate the reported benchmark results.
 
 ---
 
-## Installation
+## ⚙️ Installation & Setup
 
-Create a new virtual environment and install the required dependencies (Python 3.11 is recommended).
+We recommend utilizing an isolated virtual environment with Python 3.11. To initialize the environment and install dependencies, execute:
 
 ```bash
 # Clone the repository
 git clone https://github.com/liangxu123/rosecd.git
 cd rosecd
 
-# Install dependencies
+# Install required packages
 pip install -r requirements.txt
 ```
 
-If you are using W&B for logging, set up an account and run `wandb login` before training.
+*Note: For experiment tracking via Weights & Biases (W&B), please configure your environment using `wandb login` prior to initiating training.*
 
 ---
 
-## Dataset Preparation
+## 🗄️ Dataset Preparation
 
-The data processing follows the exact same method as the [SGMSE+](https://github.com/sp-uhh/sgmse) repository. You just need to update the dataset paths for training and testing in `path_config.sh`.
-By default, the scripts point to paths for VoiceBank-DEMAND.
+Our data preprocessing pipeline is adapted from the established [SGMSE+](https://github.com/sp-uhh/sgmse) framework. To configure the dataset directories, please update the corresponding paths in `path_config.sh`. By default, the configuration points to the VoiceBank-DEMAND corpus paths.
 
 ---
 
-## Training Pipeline: Consistency Training (CT)
+## 🚀 Training Framework: Consistency Training (CT) and Consistency Distillation (CD)
 
-We provide a direct, single-step training pipeline called **Consistency Training (CT)**.
+Consistency Models inherently support two distinct training paradigms: 
+1. **Consistency Distillation (CD):** Distilling knowledge from a pre-trained teacher diffusion model.
+2. **Consistency Training (CT):** Direct training on the empirical data distribution without the necessity of a teacher model.
 
-> **Why CT instead of CD?**  
-> While Consistency Distillation (CD) requires training a heavy "Teacher" diffusion model and distilling its knowledge, **Consistency Training (CT)** directly enforces self-consistency on the true data distribution. By mapping any noisy point on the Probability Flow ODE trajectory straight to its clean origin, CT entirely bypasses the need for a teacher network. This eliminates teacher-induced approximation errors, drastically simplifies the training pipeline, and delivers identical (or better) state-of-the-art one-step enhancement performance.
+While our published paper primarily formalizes and evaluates the method utilizing **Consistency Distillation (CD)**, subsequent empirical analyses revealed that applying **Consistency Training (CT)** within the exact same codebase yields identical performance. Because CT completely bypasses the need to rely on a pre-trained teacher model, it significantly streamlines the training procedure and circumvents teacher-induced approximation errors. 
 
-To train the one-step model directly from scratch:
+Therefore, in this repository, we officially release both the **Teacher model training** scripts and the **CT model training** scripts, as CT achieves the same state-of-the-art one-step enhancement performance as CD, but with a much simpler pipeline.
+
+To train the one-step model from scratch using CT, execute:
 
 ```bash
-bash ./scripts/train_CT.sh 0 # where 0 is the GPU_ID
+bash ./scripts/train_CT.sh <GPU_ID>  # e.g., bash ./scripts/train_CT.sh 0
+```
+
+To train the multi-step Teacher model (if you wish to reproduce the baseline or teacher pipeline), execute:
+
+```bash
+bash ./scripts/train_teacher.sh <GPU_ID>  # e.g., bash ./scripts/train_teacher.sh 0
 ```
 
 ---
 
-## Evaluation
+## 📈 Evaluation Protocol
 
-To evaluate the one-step consistency model on test sets, use the provided scripts in the `scripts/` directory.
+To benchmark the one-step consistency model on the test corpus, utilize the evaluation scripts provided in the `scripts/` directory.
 
-Before running the evaluation, remember to update the checkpoint path inside `scripts/eval_CT.sh` to point to your trained model.
-
-```bash
-bash ./scripts/eval_CT.sh 0 # where 0 is the GPU_ID
-```
-
-This script will automatically generate the enhanced audio in `out/onestep_pesq5e-4_CT/N_1` and immediately evaluate it using the objective metrics scripts (calculating PESQ, ESTOI, SI-SDR, etc.).
-
-**Evaluating the Baseline Teacher Model**  
-If you trained a baseline multi-step Teacher model (using `train_teacher.sh`), you can evaluate it by first setting your checkpoint path inside `scripts/eval_teacher.sh` and then running:
+Prior to execution, verify that the checkpoint path inside `scripts/eval_CT.sh` correctly points to your trained model weights.
 
 ```bash
-bash ./scripts/eval_teacher.sh 0 # where 0 is the GPU_ID
+bash ./scripts/eval_CT.sh <GPU_ID>  # e.g., bash ./scripts/eval_CT.sh 0
 ```
 
-This script will automatically generate the enhanced audio in `out/teacher/N_30` and immediately evaluate it using the standard metric calculation script.
+This procedure generates the enhanced audio files within `out/onestep_pesq5e-4_CT/N_1` and subsequently computes standard objective metrics (e.g., PESQ, ESTOI, SI-SDR).
+
+**Evaluating the Baseline Teacher Model:**  
+If a baseline multi-step Teacher model was trained (via `scripts/train_teacher.sh`), it can be evaluated by updating the checkpoint path within `scripts/eval_teacher.sh` and running:
+
+```bash
+bash ./scripts/eval_teacher.sh <GPU_ID>  # e.g., bash ./scripts/eval_teacher.sh 0
+```
+
+Enhanced outputs will be saved to `out/teacher/N_30` and evaluated automatically.
 
 ---
 
-## Citation
+## 📝 Citation
 
-If you find this work helpful, please cite:
+If this codebase or methodology proves useful in your research, please consider citing our work:
 
 ```bibtex
 @inproceedings{xu2025robust,
@@ -127,6 +131,6 @@ If you find this work helpful, please cite:
 
 ---
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
-We would like to thank the authors of the [SGMSE+](https://github.com/sp-uhh/sgmse) repository. Our codebase is built upon their excellent work.
+We express our gratitude to the authors of the [SGMSE+](https://github.com/sp-uhh/sgmse) repository, upon whose exemplary foundational work this codebase is built.

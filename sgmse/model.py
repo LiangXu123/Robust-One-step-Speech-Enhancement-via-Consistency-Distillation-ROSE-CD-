@@ -163,9 +163,6 @@ class ScoreModel(pl.LightningModule):
         # on_load_checkpoint / on_save_checkpoint needed for EMA storing/loading
         # return True
         ema = checkpoint.get('ema', None)
-        # print('ema:', checkpoint['ema'])
-        # print('self.master_paras:', self.master_paras)
-        # print('self.named_parameters():', self.named_parameters())
         if ema is not None:
             self.ema.load_state_dict(checkpoint['ema'])
         else:
@@ -563,11 +560,6 @@ class ScoreModel(pl.LightningModule):
             elif self.loss_type == "precond_denoiser":  # for M3
                 D = self._c_skip(t) * x_t + self._c_out(t) * F
                 if return_X:
-                    # print('c_in:{},c_out:{}c_skip:{}'.format(self._c_in(t), self._c_out(t), self._c_skip(t)))
-                    # for N=1, the output is :
-                    # c_in:tensor([[[[2.4898]]]], device='cuda:0')
-                    # c_out:tensor([[[[0.0969]]]], device='cuda:0')
-                    # c_skip:tensor([[[[0.0620]]]], device='cuda:0')
                     return D
                 sigmas = self.sde._std(t)[:, None, None, None]
                 score = (D - x_t) / sigmas.pow(2)
@@ -579,11 +571,7 @@ class ScoreModel(pl.LightningModule):
         # In [1] and [2], we use the old code:
         else:
             dnn_input = torch.cat([x_t, y], dim=1)
-            # print('dnn_input:{}, t:{}, next(target_score_model.dnn.parameters()).device:{}'.format(
-            # dnn_input.device, t.device, next(self.dnn.parameters()).device))
             score = -self.dnn(dnn_input, t)
-            # print('dnn_input:{}, score:{}, score_device: {}, t:{}'.format(
-            # torch.mean(dnn_input), torch.mean(score), score.device,  t))
             return score
 
     def _c_in(self, t):

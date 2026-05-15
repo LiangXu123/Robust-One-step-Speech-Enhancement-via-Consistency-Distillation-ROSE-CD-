@@ -79,52 +79,7 @@ if __name__ == '__main__':
     print('model.sr : {}'.format(model.sr))
     print('args.sampler_type : {}'.format(args.sampler_type))
 
-# for m3, the output are:
-# model.backbone : ncsnpp_v2
-# args.N : 30
-# model.c_in : edm
-# model.c_out : edm
-# model.c_skip : edm
-# model.loss_type : denoiser
-# model.loss_weighting : edm
-# model.l1_weight : 0.001
-# model.t_eps : 0.03
-# model.pesq_weight : 0.0
-# model.network_scaling : 1
-# model.sigma_data : 0.1
-# model.num_eval_files : 20
-# model.sr : 16000
-# for m2, the output are:
 
-# for m2, the output:
-# model.backbone : ncsnpp_v2
-# args.N : 30
-# model.c_in : 1
-# model.c_out : 1
-# model.c_skip : 0
-# model.loss_type : denoiser
-# model.loss_weighting : sigma^2
-# model.l1_weight : 0.001
-# model.t_eps : 0.03
-# model.pesq_weight : 0.0
-# model.network_scaling : 1
-# model.sigma_data : 0.1
-# model.num_eval_files : 20
-# model.sr : 16000
-
-# for m1, the output:
-# model.c_in : 1
-# model.c_out : 1
-# model.c_skip : 0
-# model.loss_type : score_matching
-# model.loss_weighting : sigma^2
-# model.l1_weight : 0.001
-# model.t_eps : 0.03
-# model.pesq_weight : 0.0
-# model.network_scaling : 1/t
-# model.sigma_data : 0.1
-# model.num_eval_files : 20
-# model.sr : 16000
     # Enhance files
     for noisy_file in tqdm(noisy_files):
         filename = noisy_file.replace(args.test_dir, "")
@@ -147,23 +102,10 @@ if __name__ == '__main__':
         # Normalize
         norm_factor = y.abs().max()
         y = y / norm_factor
-        # print('y.shape : {}'.format(y.shape))
         # Prepare DNN input
         Y = torch.unsqueeze(model._forward_transform(
             model._stft(y.to(args.device))), 0)
-        # print('before pad Y.shape : {}'.format(Y.shape))
         Y = pad_spec(Y, mode=pad_mode)
-        # print('padded Y.shape : {}'.format(Y.shape))
-
-        # y.shape : torch.Size([1, 43491]) the shape of `[channel, time]`.
-        # before pad Y.shape : torch.Size([1, 1, 256, 340])
-        # padded Y.shape : torch.Size([1, 1, 256, 384])
-        # x_hat.shape : torch.Size([1, 43491]) the shape of `[channel, time]`.
-
-        # y.shape : torch.Size([1, 1349730]) the shape of `[channel, time]`.
-        # before pad Y.shape : torch.Size([1, 1, 256, 10545])
-        # padded Y.shape : torch.Size([1, 1, 256, 10560])
-        # x_hat.shape : torch.Size([1, 1349730]) the shape of `[channel, time]`.
 
         # Reverse sampling
         if model.sde.__class__.__name__ == 'OUVESDE':
@@ -189,8 +131,7 @@ if __name__ == '__main__':
 
         # Backward transform in time domain
         x_hat = model.to_audio(sample.squeeze(), T_orig)
-        # print('x_hat.shape : {}'.format(x_hat.shape))
-        # x_hat.shape : torch.Size([43444])
+
         # Renormalize
         x_hat = x_hat * norm_factor
 

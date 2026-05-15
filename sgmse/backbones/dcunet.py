@@ -249,9 +249,6 @@ class DCUNet(nn.Module):
         self.mask_bound = (dcunet_mask_bound if dcunet_mask_bound != "none" else None)
         if self.mask_bound is not None:
             raise NotImplementedError("sorry, mask bounding not implemented at the moment")
-            # TODO we can't use nn.Sequential since the ComplexConvTranspose2d needs a second `output_size` argument
-        #operations = (output_layer, complex_nn.BoundComplexMask(self.mask_bound))
-        #output_layer = nn.Sequential(*[x for x in operations if x is not None])
 
         assert len(encoders) == len(decoders) + 1
         self.encoders = nn.ModuleList(encoders)
