@@ -287,58 +287,7 @@ def get_pc_sampler2(
     return pc_sampler_at_one_step
 
 
-def get_consistency_sampler(consistency_sampler_name, sde, score_fn,
-                            y,
-                            eps=0.03,
-                            ts="0,15,29",
-                            snr=0.5,
-                            **kwargs):
-    """Create a consistency sampler.
-    Args:
-        consistency_sampler_name: The name of a registered `sampling.Predictor`.
-        corrector_name: The name of a registered `sampling.Corrector`.        sde: An `sdes.SDE` object representing the forward SDE.
-        score_fn: A function (typically learned model) that predicts the score.
-        y: A `torch.Tensor`, representing the (non-white-)noisy starting point(s) to condition the prior on.
-        eps: A `float` number. The reverse-time SDE and ODE are integrated to `epsilon` to avoid numerical issues.
-        snr: The SNR to use for the corrector. 0.1 by default, and ignored for `NoneCorrector`.
-        N: The number of reverse sampling steps. If `None`, uses the SDE's `N` property by default.
 
-    Returns:
-        A sampling function that returns samples and the number of function evaluations during sampling.
-    """
-    predictor_cls = PredictorRegistry.get_by_name(
-        consistency_sampler_name)
-    predictor = predictor_cls(
-        sde, score_fn, eps)
-    ts = list(map(int, ts.split(',')))
-    only_one_step = False
-    N = sde.N
-    N = 5
-    if consistency_sampler_name == 'onestep':
-        only_one_step = True
-
-    def consistency_sampler():
-        """The consistency sampler function."""
-        with torch.no_grad():
-            xt = sde.prior_sampling(y.shape, y).to(y.device)
-            # xt = y + z*sigma
-            timesteps = torch.linspace(sde.T, eps, N, device=y.device)
-            lst_r = list(range(N))
-            # if only_one_step:
-            # lst_r = lst_r[-1:]
-
-            print('N:', N)
-            for i in lst_r:  # 30
-                t = timesteps[i]
-                if i != len(timesteps) - 1:
-                    stepsize = t - timesteps[i+1]
-                else:
-                    stepsize = timesteps[-1]  # from eps to 0
-                vec_t = torch.ones(y.shape[0], device=y.device) * t
-                xt, xt_mean = predictor.update_fn(xt, y, vec_t, stepsize)
-            return xt, xt_mean
-
-    return consistency_sampler
 
 
 def get_pc_sampler(

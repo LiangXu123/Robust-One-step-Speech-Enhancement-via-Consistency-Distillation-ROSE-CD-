@@ -1,36 +1,21 @@
 import time
 from math import ceil
 import warnings
-
 import torch
-import sys
-import torch.nn.functional as F
 import pytorch_lightning as pl
-import torch.distributed as dist
 from torchaudio import load
 from torch_ema import ExponentialMovingAverage
 from librosa import resample
-from .nn import mean_flat, append_dims, append_zero
+from .nn import mean_flat
 from sgmse import sampling
 from sgmse.sdes import SDERegistry
 from sgmse.backbones import BackboneRegistry
-from sgmse.util.inference import evaluate_model
 from sgmse.util.other import pad_spec, si_sdr
 from pesq import pesq
 from pystoi import stoi
 from torch_pesq import PesqLoss
-import copy
-import torch.nn as nn
-import numpy as np
-import torch
-from torchmetrics import ScaleInvariantSignalDistortionRatio
 from asteroid.losses import pairwise_neg_sisdr
 from asteroid.losses import PITLossWrapper
-
-# target = torch.tensor([3.0, -0.5, 2.0, 7.0])
-# preds = torch.tensor([2.5, 0.0, 2.0, 8.0])
-# si_sdr = ScaleInvariantSignalDistortionRatio()
-# si_sdr(preds, target)
 
 
 class ScoreModel(pl.LightningModule):
@@ -138,67 +123,17 @@ class ScoreModel(pl.LightningModule):
         self.use_distill_mode = False
         self.distill_sampler_already_init = False
         self.sisdr_already_init = False
-        self.distill_solver = None
-        self.distill_sample_return_xmean = False
         self.with_pesq_loss = False
         self.with_sisdr_loss = False
         self.distill_loss_type = None
         self.sisdr_loss_func = None
 
-    def get_pc_sampler2(self, predictor_name='reverse_diffusion', corrector_name='ald',
-                        score_fn=None, denoise=True, corrector_steps=1, snr=0.5):
-        # Reverse sampling
-        return sampling.get_pc_sampler2(
-            predictor_name, corrector_name, self.sde, score_fn,
-            denoise=denoise, eps=self.t_eps, snr=snr, corrector_steps=corrector_steps
-        )
 
-    def get_heun_solver_sampler(self, predictor_name='heun_solver',
-                                score_fn=None, denoise=True):
-        # Reverse sampling
-        return sampling.get_heun_solver_sampler(
-            predictor_name, self.sde, score_fn,
-            denoise=denoise, eps=self.t_eps)
-
-    def get_mix_sampler(self, predictor_name='mix_solver',
-                        score_fn=None, denoise=True):
-        # Reverse sampling
-        return sampling.get_mix_sampler(
-            predictor_name, self.sde, score_fn,
-            denoise=denoise, eps=self.t_eps)
-
-    def get_euler_sampler(self, predictor_name='euler_maruyama',
-                          score_fn=None, denoise=True):
-        # Reverse sampling
-        return sampling.get_euler_sampler(
-            predictor_name, self.sde, score_fn,
-            denoise=denoise, eps=self.t_eps)
-
-    def get_sb_solver(self, score_fn=None, denoise=True):
-        # Reverse sampling
-        if self.distill_solver == 'sb':
-            return sampling.get_sb_solver(
-                self.sde, score_fn,
-                denoise=denoise, eps=self.t_eps)
-        elif self.distill_solver == 'sb_sde':
-            return sampling.get_sb_solver_sde(
-                self.sde, score_fn,
-                denoise=denoise, eps=self.t_eps)
-
-    def get_stochastic_sampler(self, score_fn, y, N, snr=0.5):
-        # Reverse sampling for consistency distillation
-        sde = self.sde.copy()
-        sde.N = N
-        return sampling.get_stochastic_sampler(score_fn, sde,
-                                               y, snr)
-
-    def distill_on(self, distill_solver='pc2', distill_loss_type="L2", with_pesq_loss=False, with_sisdr_loss=False, distill_sample_return_xmean=False,
+    def distill_on(self, distill_loss_type="L2", with_pesq_loss=False, with_sisdr_loss=False,
                    main_device="cuda:1", target_device="cuda:2", teach_device="cuda:3", corrector_steps=1, snr=0.5,
                    weight_schedule="uniform", sigma_data=0.1):  #
         self.use_distill_mode = True
-        self.distill_solver = distill_solver
         self.distill_loss_type = distill_loss_type
-        self.distill_sample_return_xmean = distill_sample_return_xmean
         self.corrector_steps = corrector_steps
         self.snr = snr
         self.weight_schedule = weight_schedule
@@ -239,9 +174,9 @@ class ScoreModel(pl.LightningModule):
 
     def on_save_checkpoint(self, checkpoint):
         if self.use_distill_mode:
-            """ Remove layers containing 'teacher_score_model' or 'target_score_model' before saving """
+            """ Remove layers containing 'target_score_model' before saving """
             keys_to_remove = [key for key in checkpoint["state_dict"]
-                              if "teacher_score_model" in key or "target_score_model" in key]
+                              if "target_score_model" in key]
             for key in keys_to_remove:
                 del checkpoint["state_dict"][key]
         checkpoint['ema'] = self.ema.state_dict()
@@ -366,117 +301,29 @@ class ScoreModel(pl.LightningModule):
             D = score * sigma.pow(2) + x_t  # equivalent to Eq. (10)
             return D
 
-        # self.sde.T = 1
-        # self.sde.N = 30
         timesteps = torch.linspace(
             self.sde.T, self.t_eps, self.sde.N, device=x.device)
         indices = torch.randint(
             0, self.sde.N - 1, (x.shape[0],)
-            # , device=x.device
         )
         t = timesteps[indices]
         t2 = timesteps[indices + 1]
-        # print('t:{}, t2:{}'.format(t, t2))
-        # t:tensor([0.9331, 0.5652, 0.4648, 0.9331, 0.5986, 1.0000, 0.8997, 0.1638])
-        # t2:tensor([0.8997, 0.5317, 0.4314, 0.8997, 0.5652, 0.9666, 0.8662, 0.1303])
+
         mean, std = self.sde.marginal_prob(x, y, t)
         z = torch.randn_like(x)  # i.i.d. normal distributed with var=0.5
         sigma = std[:, None, None, None]
-        # sigmat2 = self.sde._std(t2)[:, None, None, None]
         x_t = mean + sigma * z
 
         forward_out = self(x_t, y, t)
         distiller = denoise_fn(forward_out, x_t, t, sigma)
-
-        @torch.no_grad()
-        def batch_sampler(sampler_fn, xt, y, t, next_t):
-            # loop for bs
-            samples = []
-            for bs_i in range(len(xt)):
-                sample = sampler_fn(
-                    xt[bs_i:bs_i+1, :], y[bs_i:bs_i+1, :], t[bs_i], next_t[bs_i])
-                samples.append(sample)
-            samples = torch.cat(samples, dim=0)
-            return samples
-
-        @torch.no_grad()
-        def pc2_solver(xt, y, t, next_t):
-            if not self.distill_sampler_already_init:
-                self.distill_sampler_already_init = True
-                self.distill_sampler = self.get_pc_sampler2(
-                    'reverse_diffusion_with_dnn', 'ald_with_dnn', score_fn=self.teacher_score_model,
-                    denoise=self.distill_sample_return_xmean, corrector_steps=self.corrector_steps, snr=self.snr)
-                # return pc_sampler_at_one_step, but this is only for bs=1, but in train we have bs=8
-            return batch_sampler(self.distill_sampler, xt, y, t, next_t)
-
-        @torch.no_grad()
-        def heun_solver(xt, y, t, next_t):
-            if not self.distill_sampler_already_init:
-                self.distill_sampler_already_init = True
-                self.distill_sampler = self.get_heun_solver_sampler(
-                    'heun_solver', score_fn=self.teacher_score_model,
-                    denoise=self.distill_sample_return_xmean)
-                # return pc_sampler_at_one_step, but this is only for bs=1, but in train we have bs=8
-            return batch_sampler(self.distill_sampler, xt, y, t, next_t)
-
-        @torch.no_grad()
-        def mix_solver(xt, y, t, next_t):
-            if not self.distill_sampler_already_init:
-                self.distill_sampler_already_init = True
-                self.distill_sampler = self.get_mix_sampler(
-                    'mix_solver', score_fn=self.teacher_score_model,
-                    denoise=self.distill_sample_return_xmean)
-                # return pc_sampler_at_one_step, but this is only for bs=1, but in train we have bs=8
-            return batch_sampler(self.distill_sampler, xt, y, t, next_t)
-
-        @torch.no_grad()
-        def euler_solver(xt, y, t, next_t):
-            if not self.distill_sampler_already_init:
-                self.distill_sampler_already_init = True
-                self.distill_sampler = self.get_euler_sampler(
-                    'euler_maruyama', score_fn=self.teacher_score_model,
-                    denoise=self.distill_sample_return_xmean)
-                # return pc_sampler_at_one_step, but this is only for bs=1, but in train we have bs=8
-            return batch_sampler(self.distill_sampler, xt, y, t, next_t)
-
-        @torch.no_grad()
-        def sb_solver(xt, y, t, next_t):
-            if not self.distill_sampler_already_init:
-                self.distill_sampler_already_init = True
-                self.distill_sampler = self.get_sb_solver(
-                    score_fn=self.teacher_score_model, denoise=self.distill_sample_return_xmean)
-                # return pc_sampler_at_one_step, but this is only for bs=1, but in train we have bs=8
-            return batch_sampler(self.distill_sampler, xt, y, t, next_t)
-
-        # calculate x_t+1 here
-        if self.distill_solver == 'pc2':
-            targt_x_t2 = pc2_solver(
-                x_t, y, t, t2).detach()
-        # calculate x_t+1 here
-        elif self.distill_solver == 'heun':
-            targt_x_t2 = heun_solver(
-                x_t, y, t, t2).detach()
-        # calculate x_t+1 here
-        elif self.distill_solver == 'mix':
-            targt_x_t2 = mix_solver(
-                x_t, y, t, t2).detach()
-        # calculate x_t+1 here
-        elif self.distill_solver == 'euler':
-            targt_x_t2 = euler_solver(
-                x_t, y, t, t2).detach()
-        # calculate x_t+1 here
-        elif self.distill_solver == 'sb' or self.distill_solver == 'sb_sde':
-            targt_x_t2 = sb_solver(
-                x_t, y, t, t2).detach()
-        else:
-            raise ValueError(
-                'Your {} is not supported!'.format(self.distill_solver))
+        # for consisitency training, sample Xt2 directy
+        mean_t2, std_t2 = self.sde.marginal_prob(x, y, t2)
+        # i.i.d. normal distributed with var=0.5
+        z_t2 = torch.randn_like(x)
+        sigma_t2 = std_t2[:, None, None, None]
+        targt_x_t2 = mean_t2 + sigma_t2 * z_t2
 
         # forward x_t+1 to target model, to get the distill target
-        # target_forward_out = self.target_score_model(
-        #     targt_x_t2, y, t2).detach()
-        # distiller_target = target_denoise_fn(
-        #     target_forward_out, targt_x_t2, t2, sigma=sigmat2).detach()
         distiller_target = self.target_score_model(
             targt_x_t2, y, t2, return_X=True).detach()
 
@@ -776,18 +623,11 @@ class ScoreModel(pl.LightningModule):
         """Override PyTorch .to() to also transfer the EMA of the model weights"""
         self.ema.to(*args, **kwargs)
         return super().to(*args, **kwargs)
-
-    def get_consistency_sampler(self, consistency_sampler_name, y, N=None, ts=None, snr=None, **kwargs):
+    def get_stochastic_sampler(self, y, N=None, snr=None, **kwargs):
         N = self.sde.N if N is None else N
         sde = self.sde.copy()
         sde.N = N
-        return sampling.get_consistency_sampler(consistency_sampler_name, sde=sde, score_fn=self,
-                                                y=y,
-                                                eps=self.t_eps,
-                                                ts=ts,
-                                                snr=snr,
-                                                **kwargs)
-
+        return sampling.get_stochastic_sampler(score_fn=self, sde=sde, y=y, snr=snr, eps=self.t_eps)
     def get_pc_sampler(self, predictor_name, corrector_name, y, N=None, minibatch=None, **kwargs):
         N = self.sde.N if N is None else N
         sde = self.sde.copy()

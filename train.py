@@ -1,22 +1,24 @@
+import os
+import argparse
+import pytorch_lightning as pl
 from sgmse.model import ScoreModel
 from sgmse.sdes import SDERegistry
 from sgmse.data_module import SpecsDataModule
 from sgmse.backbones.shared import BackboneRegistry
 import torch
-import os
-import wandb
-import argparse
-import pytorch_lightning as pl
-
 from argparse import ArgumentParser
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint, TQDMProgressBar
 from os.path import join
 
 # Set CUDA architecture list and float32 matmul precision high
 from sgmse.util.other import set_torch_cuda_arch_list
 set_torch_cuda_arch_list()
 torch.set_float32_matmul_precision('high')
+
+# Suppress PyTorch AccumulateGrad stream warning (common in PyTorch Lightning + DDP)
+if hasattr(torch.autograd.graph, 'set_warn_on_accumulate_grad_stream_mismatch'):
+    torch.autograd.graph.set_warn_on_accumulate_grad_stream_mismatch(False)
 
 
 def get_argparse_groups(parser):
@@ -88,6 +90,24 @@ if __name__ == '__main__':
             **vars(arg_groups['DataModule'])
         }
     )
+    print("=" * 40)
+    print("Model (teacher_model):")
+    print("=" * 40)
+    print(f"{'backbone':20}: {model.backbone}")
+    print(f"{'c_in':20}: {model.c_in}")
+    print(f"{'c_out':20}: {model.c_out}")
+    print(f"{'c_skip':20}: {model.c_skip}")
+    print(f"{'loss_type':20}: {model.loss_type}")
+    print(f"{'loss_weighting':20}: {model.loss_weighting}")
+    print(f"{'l1_weight':20}: {model.l1_weight}")
+    print(f"{'t_eps':20}: {model.t_eps}")
+    print(f"{'pesq_weight':20}: {model.pesq_weight}")
+    print(f"{'network_scaling':20}: {model.network_scaling}")
+    print(f"{'sigma_data':20}: {model.sigma_data}")
+    print(f"{'num_eval_files':20}: {model.num_eval_files}")
+    print(f"{'sr':20}: {model.sr}")
+    print(f"{'sde.N':20}: {model.sde.N}")
+    print("\n")
 
     # Set up logger configuration
     if args.nolog:
@@ -109,7 +129,7 @@ if __name__ == '__main__':
             ModelCheckpoint(
                 dirpath=join(args.log_dir, str(logger.version)),
                 save_top_k=-1,  # Save all checkpoints that meet the condition
-                every_n_epochs=100,
+                every_n_epochs=10,
                 filename='{epoch:03d}'
             )
         ]
@@ -122,7 +142,32 @@ if __name__ == '__main__':
                                                          save_top_k=2, monitor="si_sdr", mode="max", filename='{epoch}-{si_sdr:.2f}')
             callbacks += [checkpoint_callback_pesq, checkpoint_callback_si_sdr]
     else:
-        callbacks = None
+        callbacks = []
+
+    class CustomProgressBar(TQDMProgressBar):
+        def get_metrics(self, trainer, model):
+            items = super().get_metrics(trainer, model)
+            short_items = {}
+            for k, v in items.items():
+                if isinstance(v, float):
+                    v_str = f"{v:.4f}"
+                else:
+                    v_str = str(v)
+                
+                # Shorten the verbose metric keys for the progress bar only
+                k = k.replace('train_loss_step', 'Loss_s')
+                k = k.replace('train_loss_epoch', 'Loss_e')
+                k = k.replace('Consistency_loss_step', 'CT_s')
+                k = k.replace('Consistency_loss_epoch', 'CT_e')
+                k = k.replace('PESQ_loss_step', 'PESQ_s')
+                k = k.replace('PESQ_loss_epoch', 'PESQ_e')
+                k = k.replace('SISDR_loss_step', 'SDR_s')
+                k = k.replace('SISDR_loss_epoch', 'SDR_e')
+                
+                short_items[k] = v_str
+            return short_items
+    
+    callbacks.append(CustomProgressBar())
 
     # Initialize the Trainer and the DataModule
     trainer = pl.Trainer(
@@ -133,7 +178,7 @@ if __name__ == '__main__':
         enable_checkpointing=True,
         enable_model_summary=True,
         limit_val_batches=20,
-        check_val_every_n_epoch=5  # Run validation every 10 epochs
+        check_val_every_n_epoch=10 # Run validation every 10 epochs
     )
 
     # Train model

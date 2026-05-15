@@ -15,6 +15,5 @@ torch-ema
 torchmetrics
 torch-pesq
 tqdm
-visqol
 wandb
-warpq
+setuptools

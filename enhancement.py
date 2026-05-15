@@ -171,8 +171,7 @@ if __name__ == '__main__':
                 sampler = model.get_pc_sampler('reverse_diffusion', args.corrector, Y.to(args.device), N=args.N,
                                                corrector_steps=args.corrector_steps, snr=args.snr)
             elif args.sampler_type == 'stochastic':
-                sampler = model.get_stochastic_sampler(model,
-                                                       Y.to(args.device), N=args.N, snr=args.snr)
+                sampler = model.get_stochastic_sampler(Y.to(args.device), N=args.N, snr=args.snr)
             elif args.sampler_type == 'ode':
                 sampler = model.get_ode_sampler(Y.to(args.device), N=args.N)
             else:

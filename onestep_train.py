@@ -1,30 +1,26 @@
-import random
-import numpy as np
-from pytorch_lightning.strategies import SingleDeviceStrategy
-from pytorch_lightning import Trainer
-import copy
-import warnings
+import os
+import argparse
+import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback
-import warnings
 from sgmse.model import ScoreModel
 from sgmse.sdes import SDERegistry
 from sgmse.data_module import SpecsDataModule
 from sgmse.backbones.shared import BackboneRegistry
 import torch
-import os
-import wandb
-import argparse
-import pytorch_lightning as pl
-
 from argparse import ArgumentParser
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint, TQDMProgressBar
 from os.path import join
+import warnings
 
 # Set CUDA architecture list and float32 matmul precision high
 from sgmse.util.other import set_torch_cuda_arch_list
 set_torch_cuda_arch_list()
 torch.set_float32_matmul_precision('high')
+
+# Suppress PyTorch AccumulateGrad stream warning (common in PyTorch Lightning + DDP)
+if hasattr(torch.autograd.graph, 'set_warn_on_accumulate_grad_stream_mismatch'):
+    torch.autograd.graph.set_warn_on_accumulate_grad_stream_mismatch(False)
 
 warnings.filterwarnings('ignore')
 
@@ -59,14 +55,9 @@ if __name__ == '__main__':
                              default=50000, help="Save checkpoint interval.")
         parser_.add_argument("--distill_N", type=int, default=30,
                              help="The number of timesteps in the distill procsee. 30 by default., will be set to model.sde.N after initlized. ")
-
-        # Add distill-specific parameters
-        parser_.add_argument("--distill_solver", type=str, default="pc2",
-                             choices=["pc2", "mix", "heun", "euler", "sb", "sb_sde"], help="Solver for distillation.")
         parser_.add_argument("--distill_loss_type", type=str, default="L2", choices=[
                              "L2"], help="Loss type for distillation.")
-        parser_.add_argument("--distill_sample_return_xmean",
-                             action='store_true', help="Turn on return xmean in distillation.")
+
         parser_.add_argument(
             "--with_pesq_loss", action='store_true', help="Turn on with_pesq_loss.")
         parser_.add_argument(
@@ -117,10 +108,11 @@ if __name__ == '__main__':
             **vars(arg_groups['DataModule'])
         }
     )
-    checkpoint = torch.load(
-        ckpt_path, map_location="cuda:0")  # Load checkpoint
-    model.load_state_dict(
-        checkpoint["state_dict"], strict=False)  # Load weights
+    if os.path.isfile(ckpt_path):
+        checkpoint = torch.load(
+            ckpt_path, map_location="cuda:0")  # Load checkpoint
+        model.load_state_dict(
+            checkpoint["state_dict"], strict=False)  # Load weights
 
     with torch.no_grad():
         target_model = ScoreModel(
@@ -132,55 +124,16 @@ if __name__ == '__main__':
                 **vars(arg_groups['DataModule'])
             }
         )
-        checkpoint = torch.load(
-            ckpt_path, map_location="cuda:0")  # Load checkpoint
-        target_model.load_state_dict(
-            checkpoint["state_dict"], strict=False)  # Load weights
-        if args.distill_solver == 'sb':
-            # use sb teacher
-            teacher_args = {
-                **vars(arg_groups['ScoreModel']),
-                **vars(arg_groups['SDE']),
-                **vars(arg_groups['Backbone']),
-                **vars(arg_groups['DataModule'])
-            }
-            teacher_args['loss_type'] = "data_prediction"
-            teacher_args['c_in'] = '1'
-            teacher_args['c_out'] = '1'
-            teacher_args['c_skip'] = '0'
-            teacher_model = ScoreModel(
-                backbone=args.backbone, sde=args.sde, data_module_cls=data_module_cls,
-                **teacher_args
-            )
-        else:
-            teacher_model = ScoreModel(
-                backbone=args.backbone, sde=args.sde, data_module_cls=data_module_cls,
-                **{
-                    **vars(arg_groups['ScoreModel']),
-                    **vars(arg_groups['SDE']),
-                    **vars(arg_groups['Backbone']),
-                    **vars(arg_groups['DataModule'])
-                }
-            )
-        checkpoint = torch.load(
-            ckpt_path, map_location="cuda:0")  # Load checkpoint
-        teacher_model.load_state_dict(
-            checkpoint["state_dict"], strict=False)  # Load weights
+        if os.path.isfile(ckpt_path):
+            checkpoint = torch.load(
+                ckpt_path, map_location="cuda:0")  # Load checkpoint
+            target_model.load_state_dict(
+                checkpoint["state_dict"], strict=False)  # Load weights
+
 
     target_model.dnn.train()
-    teacher_model.dnn.eval()
-    teacher_model.eval(no_ema=True)
     target_model.to("cuda:0")
-    teacher_model.to("cuda:0")
     model.to("cuda:0")
-    if args.distill_solver == 'sb':
-        teacher_model.c_in = '1'
-    else:
-        # The teacher model supports edm architecture,so we set c_in,c_out,c_skip  to edm, but leave the model with c_in to 1
-        teacher_model.c_in = 'edm'
-
-    for param in teacher_model.parameters():
-        param.requires_grad = False
     for param in target_model.parameters():
         param.requires_grad = False
     model.train()
@@ -189,40 +142,28 @@ if __name__ == '__main__':
     # set distill timesteps here
     model.sde.N = distill_N
     target_model.sde.N = distill_N
-    teacher_model.sde.N = distill_N
 
-    # Print out all the parameters before calling distill_on
-    print(f"ckpt_path: {ckpt_path}")
-    print("Distillation Parameters:")
-    print(f"Distill Solver: {args.distill_solver}")
-    print(f"Distill Loss Type: {args.distill_loss_type}")
-    print(f"with_pesq_loss: {args.with_pesq_loss}")
-    print(f"with_sisdr_loss: {args.with_sisdr_loss}")
-    print(f"Distill Sample Return XMean: {args.distill_sample_return_xmean}")
-    print(f"Weight Schedule: {args.weight_schedule}")
+
     # Define the distillation setup for your model
     model.distill_on(
-        distill_solver=args.distill_solver,
         distill_loss_type=args.distill_loss_type,
         with_pesq_loss=args.with_pesq_loss,
         with_sisdr_loss=args.with_sisdr_loss,
-        distill_sample_return_xmean=args.distill_sample_return_xmean,
+
         weight_schedule=args.weight_schedule
     )
 
     class CustomCallback(Callback):
-        def __init__(self, target_score_model, teacher_score_model):
+        def __init__(self, target_score_model):
             super().__init__()
             self.target_score_model = target_score_model
-            self.teacher_score_model = teacher_score_model
 
         def on_train_start(self, trainer, pl_module):
             """Attach models to `pl_module` before training starts."""
             pl_module.target_score_model = self.target_score_model
-            pl_module.teacher_score_model = self.teacher_score_model
 
     # Initialize callbacks with the custom callback
-    callbacks = [CustomCallback(target_model, teacher_model)]
+    callbacks = [CustomCallback(target_model)]
 
     # Set up logger configuration
     if args.nolog:
@@ -294,6 +235,31 @@ if __name__ == '__main__':
             )
         ])
 
+    class CustomProgressBar(TQDMProgressBar):
+        def get_metrics(self, trainer, model):
+            items = super().get_metrics(trainer, model)
+            short_items = {}
+            for k, v in items.items():
+                if isinstance(v, float):
+                    v_str = f"{v:.4f}"
+                else:
+                    v_str = str(v)
+                
+                # Shorten the verbose metric keys for the progress bar only
+                k = k.replace('train_loss_step', 'Loss_s')
+                k = k.replace('train_loss_epoch', 'Loss_e')
+                k = k.replace('Consistency_loss_step', 'CT_s')
+                k = k.replace('Consistency_loss_epoch', 'CT_e')
+                k = k.replace('PESQ_loss_step', 'PESQ_s')
+                k = k.replace('PESQ_loss_epoch', 'PESQ_e')
+                k = k.replace('SISDR_loss_step', 'SDR_s')
+                k = k.replace('SISDR_loss_epoch', 'SDR_e')
+                
+                short_items[k] = v_str
+            return short_items
+    
+    callbacks.append(CustomProgressBar())
+
     # Print checkpoint configuration for verification
     print("=" * 50)
     print("CHECKPOINT CONFIGURATION:")
@@ -309,27 +275,23 @@ if __name__ == '__main__':
         print(f"Metric-based checkpoints: DISABLED (num_eval_files not set or 0)")
     print("=" * 50)
 
-    for idx, one_model in enumerate([model, teacher_model, target_model]):
-        print("=" * 40)
-        print(
-            f"Model {idx + 1} ({'model' if idx == 0 else 'teacher_model' if idx == 1 else 'target_model'}):")
-        print("=" * 40)
-        print(f"{'backbone':20}: {one_model.backbone}")
-        print(f"{'c_in':20}: {one_model.c_in}")
-        print(f"{'c_out':20}: {one_model.c_out}")
-        print(f"{'c_skip':20}: {one_model.c_skip}")
-        print(f"{'loss_type':20}: {one_model.loss_type}")
-        print(f"{'loss_weighting':20}: {one_model.loss_weighting}")
-        print(f"{'l1_weight':20}: {one_model.l1_weight}")
-        print(f"{'t_eps':20}: {one_model.t_eps}")
-        print(f"{'pesq_weight':20}: {one_model.pesq_weight}")
-        print(f"{'network_scaling':20}: {one_model.network_scaling}")
-        print(f"{'sigma_data':20}: {one_model.sigma_data}")
-        print(f"{'num_eval_files':20}: {one_model.num_eval_files}")
-        print(f"{'sr':20}: {one_model.sr}")
-        print(f"{'with_pesq_loss':20}: {one_model.with_pesq_loss}")
-        print(f"{'sde.N':20}: {one_model.sde.N}")
-        print("\n")
+    print("=" * 50)
+    print("TRAINING CONFIGURATION:")
+    print("=" * 50)
+    print(f"{'Base Checkpoint':25}: {ckpt_path}")
+    print(f"{'Backbone':25}: {model.backbone}")
+    print(f"{'Distill Loss Type':25}: {args.distill_loss_type}")
+    print(f"{'Weight Schedule':25}: {args.weight_schedule}")
+    print(f"{'with_pesq_loss':25}: {model.with_pesq_loss}")
+    print(f"{'with_sisdr_loss':25}: {model.with_sisdr_loss}")
+    print(f"{'c_in':25}: {model.c_in}")
+    print(f"{'c_out':25}: {model.c_out}")
+    print(f"{'c_skip':25}: {model.c_skip}")
+    print(f"{'loss_type':25}: {model.loss_type}")
+    print(f"{'loss_weighting':25}: {model.loss_weighting}")
+    print(f"{'sde.N':25}: {model.sde.N}")
+    print("=" * 50)
+    print("\n")
 
     # Initialize the Trainer and the DataModule
     trainer = pl.Trainer(

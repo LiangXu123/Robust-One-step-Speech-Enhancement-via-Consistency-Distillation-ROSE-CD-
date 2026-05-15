@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Load environment variables (including NOISY_DIR_TIMIT)
+# --- Load path configuration ---
 source ./path_config.sh
 
 # Check if exactly one argument (GPU_ID) is provided
@@ -13,16 +13,17 @@ fi
 # Set GPU ID
 GPU_ID="$1"  # Single GPU ID
 
-# Use NOISY_DIR_TIMIT from path_config.sh as input directory
-DEFAULT_INPUT_DIR="$NOISY_DIR_TIMIT"
+# Use NOISY_DIR_VOICEBANK as input directory (from path_config.sh)
+DEFAULT_INPUT_DIR="$NOISY_DIR_VOICEBANK"
 
 # Default values for checkpoints and task names
 CHECKPOINTs=(
-    "./logs/M7_no_robust_sisdr_no_scaling_pc2_L2_uniform/86zjtg42/epoch=031.ckpt" #343
+    # "./logs/teacher/vcrsnu58/last.ckpt"
+    "./logs/teacher/vcrsnu58/last.ckpt"
 )
 
 task_save_names=(
-    "TIMES_M3_no_noise_343_TIMIT_Complete"
+    "teacher"
 )
 
 # Assert all checkpoint files exist
@@ -34,7 +35,8 @@ for CHECKPOINT in "${CHECKPOINTs[@]}"; do
 done
 
 # Define list of N values
-N_list=(1)
+N_list=(1 5 10 30)
+N_list=(30)
 
 # Function to run enhancement and metrics calculation
 enhance_and_evaluate() {
@@ -60,15 +62,17 @@ enhance_and_evaluate() {
     export CUDA_VISIBLE_DEVICES="$GPU_ID"
     
     # Construct and execute the enhancement script command
-    ENHANCEMENT_CMD="python3 enhancement.py --sampler_type 'stochastic' --test_dir \"$DEFAULT_INPUT_DIR\" --enhanced_dir \"$ENHANCED_DIR\" --ckpt \"$CHECKPOINT\" --N \"$N\""
-    eval $ENHANCEMENT_CMD || exit 1
+    ENHANCEMENT_CMD="python3 enhancement.py --test_dir \"$DEFAULT_INPUT_DIR\" --enhanced_dir \"$ENHANCED_DIR\" --ckpt \"$CHECKPOINT\" --N \"$N\""
+    echo "Running enhancement: $ENHANCEMENT_CMD"
+    eval $ENHANCEMENT_CMD || { echo "Enhancement failed for N=$N"; exit 1; }
     
     # Construct and execute the metrics calculation script command
-    METRICS_CMD="sh cal_metrics_correct_TIMIT.sh \"$task_save_name/N_$N\""
-    eval $METRICS_CMD || exit 1
+    METRICS_CMD="sh cal_metrics_VB.sh \"$task_save_name/N_$N\""
+    echo "Calculating metrics: $METRICS_CMD"
+    eval $METRICS_CMD || { echo "Metrics calculation failed for N=$N"; exit 1; }
 }
 
-# Loop through each checkpoint-task pair and run enhancement
+# Loop through each checkpoint-task pair and run enhancement and evaluation
 for index in "${!CHECKPOINTs[@]}"; do
     CHECKPOINT=${CHECKPOINTs[$index]}
     task_save_name=${task_save_names[$index]}

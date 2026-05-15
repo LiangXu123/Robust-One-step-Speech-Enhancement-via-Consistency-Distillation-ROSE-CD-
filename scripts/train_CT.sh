@@ -20,17 +20,15 @@ GPU_ID=$1
 echo "Using GPU ID: $GPU_ID"
 
 # --- Default Parameters ---
-model_name="onestep_euler_x_noise"
-DEFAULT_DISTILL_SOLVER="euler"
+model_name="CT_pesq5e-4"
 DEFAULT_DISTILL_LOSS_TYPE="L2"
 DEFAULT_WEIGHT_SCHEDULE="uniform"
 DEFAULT_BASE_DIR="$BASE_DIR_VOICEBANK"
 DEFAULT_BACKBONE="ncsnpp_v2"
-DEFAULT_CKPT="/workspace/exp_code/sgmse/logs/M3_gpu2_bs8_precond/tsfzrd6w/last.ckpt"
-DEFAULT_LOG_DIR="./logs/${model_name}_${DEFAULT_DISTILL_SOLVER}_${DEFAULT_DISTILL_LOSS_TYPE}_${DEFAULT_WEIGHT_SCHEDULE}"
+DEFAULT_CKPT=None
+DEFAULT_LOG_DIR="./logs/${model_name}_${DEFAULT_DISTILL_LOSS_TYPE}"
 
 echo "Model Name: $model_name"
-echo "Default Distillation Solver: $DEFAULT_DISTILL_SOLVER"
 echo "Default Distillation Loss Type: $DEFAULT_DISTILL_LOSS_TYPE"
 echo "Default Weight Schedule: $DEFAULT_WEIGHT_SCHEDULE"
 echo "Default Base Directory: $DEFAULT_BASE_DIR"
@@ -48,10 +46,7 @@ if [ ! -d "$DEFAULT_LOG_DIR" ]; then
 fi
 
 WANDB_DIR="$DEFAULT_LOG_DIR/wandb"
-if [ ! -d "$WANDB_DIR" ]; then
-    echo "Creating wandb directory: $WANDB_DIR"
-    mkdir -p "$WANDB_DIR"
-fi
+[ -d "$WANDB_DIR" ] || { echo "Creating wandb directory: $WANDB_DIR"; mkdir -p "$WANDB_DIR"; }
 
 # --- Environment Setup ---
 export CUDA_VISIBLE_DEVICES=$GPU_ID
@@ -59,6 +54,10 @@ echo "CUDA_VISIBLE_DEVICES set to: $CUDA_VISIBLE_DEVICES"
 
 export WANDB_MODE=dryrun
 echo "W&B mode set to: dryrun"
+
+# --- Timestamped Logging ---
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+LOGFILE="$DEFAULT_LOG_DIR/train_$TIMESTAMP.log"
 
 # --- Training Command ---
 # The consistency model does not need input scale, so we set c_in to '1'
@@ -75,14 +74,18 @@ CMD="python3 onestep_train.py \
     --c_skip 'edm' \
     --loss_type 'precond_denoiser' \
     --loss_weighting 'edm' \
-    --distill_solver \"$DEFAULT_DISTILL_SOLVER\" \
+    --with_pesq_loss \
+    --pesq_weight 5e-4 \
+    --with_sisdr_loss \
+    --sisdr_weight 5e-5 \
     --distill_loss_type \"$DEFAULT_DISTILL_LOSS_TYPE\" \
     --weight_schedule \"$DEFAULT_WEIGHT_SCHEDULE\""
 
 # --- Execution ---
 echo "Executing command:"
 echo "$CMD"
-eval $CMD
+echo "Logging to: $LOGFILE"
+eval $CMD 2>&1 | tee "$LOGFILE"
 
 # --- Completion Message ---
 echo "Training script finished execution."
